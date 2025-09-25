@@ -1,0 +1,7 @@
+{
+  "client_id": "your_client_id_here",
+  "client_secret": "your_client_secret_here",
+  "username": "your_reddit_username",
+  "password": "your_reddit_password",
+  "user_agent": "RedditCLI/1.0 by your_username"
+}
