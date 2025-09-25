@@ -242,6 +242,33 @@ class RedditCLI:
             print(f"❌ Error getting post from URL: {e}")
             return None
     
+    def delete_post(self, post_url: str) -> bool:
+        """Delete a Reddit post by its URL."""
+        return self._execute_with_retry(
+            self._delete_post_impl,
+            post_url
+        ) or False
+    
+    def _delete_post_impl(self, post_url: str) -> bool:
+        """Internal implementation of deleting a post."""
+        try:
+            submission = self.reddit.submission(url=post_url)
+            
+            # Check if the post belongs to the current user
+            if submission.author != self.reddit.user.me():
+                print(f"❌ You can only delete your own posts")
+                return False
+            
+            # Delete the post
+            submission.delete()
+            print(f"✅ Successfully deleted post: {submission.title}")
+            print(f"🔗 URL: {post_url}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error deleting post: {e}")
+            return False
+    
     def monitor_post(self, submission: Submission, check_interval: int = 30, 
                     max_checks: int = 10) -> List[Dict]:
         """Monitor a post for new responses."""
@@ -313,6 +340,10 @@ def main():
     flairs_parser = subparsers.add_parser("flairs", help="Get available flairs for a subreddit")
     flairs_parser.add_argument("subreddit", help="Subreddit name (without r/)")
     
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete a post")
+    delete_parser.add_argument("post_url", help="Reddit post URL")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -361,6 +392,13 @@ def main():
                 print(f"  ID: {flair['id']} | Text: {flair['text']} | CSS: {flair['css_class']}")
         else:
             print(f"No flairs available for r/{args.subreddit}")
+    
+    elif args.command == "delete":
+        success = cli.delete_post(args.post_url)
+        if success:
+            print(f"\n🗑️  Post successfully deleted!")
+        else:
+            print(f"\n❌ Failed to delete post")
 
 
 if __name__ == "__main__":
