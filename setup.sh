@@ -12,21 +12,11 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-# Check if Docker Compose is installed
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
-    echo "   Visit: https://docs.docker.com/compose/install/"
-    exit 1
-fi
-
-echo "✅ Docker and Docker Compose are installed"
-
-# Create config directory
-mkdir -p config
+echo "✅ Docker is installed"
 
 # Build the Docker image
 echo "🔨 Building Docker image..."
-docker-compose build
+docker build -t reddit-cli .
 
 if [ $? -eq 0 ]; then
     echo "✅ Docker image built successfully!"
@@ -38,7 +28,7 @@ fi
 # Check if config file exists
 if [ ! -f "reddit_config.json" ]; then
     echo "📝 Creating Reddit configuration template..."
-    docker-compose run --rm reddit-cli post test "Test Post" > /dev/null 2>&1
+    cp reddit_config.json.example reddit_config.json
     echo "✅ Configuration template created at reddit_config.json"
     echo ""
     echo "🔧 Next steps:"
@@ -56,5 +46,7 @@ echo "📖 Usage examples:"
 echo "  ./run.sh post askreddit 'What are the best resources for [topic]?'"
 echo "  ./run.sh flairs [subreddit_name]"
 echo "  ./run.sh responses 'https://reddit.com/r/askreddit/comments/abc123/post/'"
+echo "  ./run.sh comment 'https://reddit.com/r/subreddit/comments/post/' 'Your comment'"
+echo "  ./run.sh hot [subreddit_name]"
 echo ""
 echo "💡 Run './run.sh --help' for more information"

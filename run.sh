@@ -15,5 +15,13 @@ if [ ! -f "reddit_config.json" ]; then
     exit 1
 fi
 
+# Check if image exists, build if not
+if ! docker image inspect reddit-cli > /dev/null 2>&1; then
+    echo "🔨 Building Reddit CLI Docker image..."
+    docker build -t reddit-cli .
+fi
+
 # Run the Reddit CLI with Docker
-docker-compose run --rm reddit-cli "$@"
+docker run --rm \
+    -v "$(pwd)/reddit_config.json:/app/reddit_config.json" \
+    reddit-cli "$@"

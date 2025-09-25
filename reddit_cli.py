@@ -269,6 +269,84 @@ class RedditCLI:
             print(f"❌ Error deleting post: {e}")
             return False
     
+    def comment_on_post(self, post_url: str, comment_text: str) -> Optional[Comment]:
+        """Comment on a Reddit post with rate limiting."""
+        return self._execute_with_retry(
+            self._comment_on_post_impl,
+            post_url, comment_text
+        )
+    
+    def _comment_on_post_impl(self, post_url: str, comment_text: str) -> Optional[Comment]:
+        """Internal implementation of commenting on a post."""
+        try:
+            submission = self.reddit.submission(url=post_url)
+            comment = submission.reply(comment_text)
+            
+            print(f"✅ Successfully commented on post: {submission.title}")
+            print(f"💭 Comment: {comment_text[:100]}...")
+            print(f"🔗 Comment URL: https://reddit.com{comment.permalink}")
+            
+            return comment
+            
+        except Exception as e:
+            print(f"❌ Error commenting on post: {e}")
+            return None
+    
+    def reply_to_comment(self, comment_url: str, reply_text: str) -> Optional[Comment]:
+        """Reply to a Reddit comment with rate limiting."""
+        return self._execute_with_retry(
+            self._reply_to_comment_impl,
+            comment_url, reply_text
+        )
+    
+    def _reply_to_comment_impl(self, comment_url: str, reply_text: str) -> Optional[Comment]:
+        """Internal implementation of replying to a comment."""
+        try:
+            # Extract comment ID from URL
+            comment_id = comment_url.split('/')[-1]
+            comment = self.reddit.comment(id=comment_id)
+            reply = comment.reply(reply_text)
+            
+            print(f"✅ Successfully replied to comment")
+            print(f"💭 Reply: {reply_text[:100]}...")
+            print(f"🔗 Reply URL: https://reddit.com{reply.permalink}")
+            
+            return reply
+            
+        except Exception as e:
+            print(f"❌ Error replying to comment: {e}")
+            return None
+    
+    def get_hot_posts(self, subreddit_name: str, limit: int = 10) -> List[Dict]:
+        """Get hot posts from a subreddit for commenting opportunities."""
+        return self._execute_with_retry(
+            self._get_hot_posts_impl,
+            subreddit_name, limit
+        ) or []
+    
+    def _get_hot_posts_impl(self, subreddit_name: str, limit: int = 10) -> List[Dict]:
+        """Internal implementation of getting hot posts."""
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            posts = []
+            
+            for submission in subreddit.hot(limit=limit):
+                posts.append({
+                    'id': submission.id,
+                    'title': submission.title,
+                    'score': submission.score,
+                    'num_comments': submission.num_comments,
+                    'url': f"https://reddit.com{submission.permalink}",
+                    'created_utc': datetime.fromtimestamp(submission.created_utc).strftime('%Y-%m-%d %H:%M:%S'),
+                    'author': str(submission.author) if submission.author else '[deleted]'
+                })
+            
+            return posts
+            
+        except Exception as e:
+            print(f"❌ Error getting hot posts: {e}")
+            return []
+    
     def monitor_post(self, submission: Submission, check_interval: int = 30, 
                     max_checks: int = 10) -> List[Dict]:
         """Monitor a post for new responses."""
@@ -344,6 +422,21 @@ def main():
     delete_parser = subparsers.add_parser("delete", help="Delete a post")
     delete_parser.add_argument("post_url", help="Reddit post URL")
     
+    # Comment command
+    comment_parser = subparsers.add_parser("comment", help="Comment on a post")
+    comment_parser.add_argument("post_url", help="Reddit post URL")
+    comment_parser.add_argument("text", help="Comment text")
+    
+    # Reply command
+    reply_parser = subparsers.add_parser("reply", help="Reply to a comment")
+    reply_parser.add_argument("comment_url", help="Reddit comment URL")
+    reply_parser.add_argument("text", help="Reply text")
+    
+    # Hot posts command
+    hot_parser = subparsers.add_parser("hot", help="Get hot posts from a subreddit")
+    hot_parser.add_argument("subreddit", help="Subreddit name (without r/)")
+    hot_parser.add_argument("--limit", type=int, default=10, help="Number of posts to fetch")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -399,6 +492,32 @@ def main():
             print(f"\n🗑️  Post successfully deleted!")
         else:
             print(f"\n❌ Failed to delete post")
+    
+    elif args.command == "comment":
+        comment = cli.comment_on_post(args.post_url, args.text)
+        if comment:
+            print(f"\n💬 Comment successfully posted!")
+        else:
+            print(f"\n❌ Failed to post comment")
+    
+    elif args.command == "reply":
+        reply = cli.reply_to_comment(args.comment_url, args.text)
+        if reply:
+            print(f"\n💬 Reply successfully posted!")
+        else:
+            print(f"\n❌ Failed to post reply")
+    
+    elif args.command == "hot":
+        posts = cli.get_hot_posts(args.subreddit, args.limit)
+        if posts:
+            print(f"\n🔥 Hot posts from r/{args.subreddit}:")
+            for i, post in enumerate(posts, 1):
+                print(f"\n{i}. 📝 {post['title']}")
+                print(f"   👤 by {post['author']} | 📈 {post['score']} | 💬 {post['num_comments']} comments")
+                print(f"   📅 {post['created_utc']}")
+                print(f"   🔗 {post['url']}")
+        else:
+            print(f"No hot posts found for r/{args.subreddit}")
 
 
 if __name__ == "__main__":
