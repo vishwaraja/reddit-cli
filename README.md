@@ -198,14 +198,13 @@ python reddit_cli.py monitor "https://reddit.com/r/askreddit/comments/abc123/you
 ./run.sh responses "https://reddit.com/r/askreddit/comments/abc123/your_post_title/" --limit 20
 ```
 
-### Example 4: Find Dating Subreddits
+### Example 4: Explore Any Topic
 ```bash
-# Post a question about dating subreddits
-./run.sh post askreddit "What are the best dating subreddits for advice?" --content "I'm looking for good subreddits to get dating advice and share experiences."
+# Post a question about any topic
+./run.sh post askreddit "What are the best resources for learning [topic]?" --content "I'm looking for good resources and recommendations."
 
-# Check flairs in dating subreddits
-./run.sh flairs dating
-./run.sh flairs relationship_advice
+# Check flairs in relevant subreddits
+./run.sh flairs [subreddit_name]
 ```
 
 ## Important Notes
@@ -214,6 +213,8 @@ python reddit_cli.py monitor "https://reddit.com/r/askreddit/comments/abc123/you
 - **Subreddit Rules**: Always follow the rules of the subreddits you're posting to.
 - **API Limits**: Be mindful of Reddit's API usage limits.
 - **Security**: Keep your `reddit_config.json` file secure and never share it publicly.
+- **Privacy**: This tool is completely generic and doesn't store or track any of your Reddit activity or content.
+- **Generic Use**: The tool can be used for any topic or subreddit - it's not limited to any specific use case.
 
 ## Troubleshooting
 
