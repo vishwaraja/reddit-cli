@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 
 import praw
 from praw.models import Submission, Comment
+from praw.exceptions import RedditAPIException, ClientException
 
 
 class RedditCLI:
@@ -43,12 +44,98 @@ class RedditCLI:
                 password=config['password']
             )
             
-            # Test the connection
-            print(f"Connected to Reddit as: {self.reddit.user.me()}")
+            # Add initial delay to avoid rate limiting
+            print("⏳ Waiting 10 seconds to avoid rate limiting...")
+            time.sleep(10)
+            
+            # Test the connection with rate limiting
+            self._test_connection_with_retry()
             
         except Exception as e:
             print(f"Error loading configuration: {e}")
             sys.exit(1)
+    
+    def _test_connection_with_retry(self, max_retries=3, delay=5):
+        """Test Reddit connection with retry logic and rate limiting."""
+        for attempt in range(max_retries):
+            try:
+                # Test the connection
+                user = self.reddit.user.me()
+                print(f"✅ Connected to Reddit as: {user}")
+                return True
+                
+            except RedditAPIException as e:
+                if "RATE_LIMIT" in str(e) or "429" in str(e):
+                    print(f"⏳ Rate limited. Waiting {delay} seconds before retry {attempt + 1}/{max_retries}...")
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                        delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        print("❌ Rate limit exceeded. Please wait before trying again.")
+                        sys.exit(1)
+                else:
+                    print(f"❌ Reddit API error: {e}")
+                    sys.exit(1)
+                    
+            except ClientException as e:
+                if "401" in str(e) or "unauthorized" in str(e).lower():
+                    print(f"❌ Authentication failed: {e}")
+                    print("💡 Please check your credentials in reddit_config.json")
+                    sys.exit(1)
+                else:
+                    print(f"❌ Client error: {e}")
+                    sys.exit(1)
+                    
+            except Exception as e:
+                print(f"❌ Unexpected error: {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    sys.exit(1)
+        
+        return False
+    
+    def _execute_with_retry(self, func, *args, max_retries=3, delay=5, **kwargs):
+        """Execute a function with retry logic and rate limiting."""
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+                
+            except RedditAPIException as e:
+                if "RATE_LIMIT" in str(e) or "429" in str(e):
+                    print(f"⏳ Rate limited. Waiting {delay} seconds before retry {attempt + 1}/{max_retries}...")
+                    if attempt < max_retries - 1:
+                        time.sleep(delay)
+                        delay *= 2  # Exponential backoff
+                        continue
+                    else:
+                        print("❌ Rate limit exceeded. Please wait before trying again.")
+                        return None
+                else:
+                    print(f"❌ Reddit API error: {e}")
+                    return None
+                    
+            except ClientException as e:
+                if "401" in str(e) or "unauthorized" in str(e).lower():
+                    print(f"❌ Authentication failed: {e}")
+                    return None
+                else:
+                    print(f"❌ Client error: {e}")
+                    return None
+                    
+            except Exception as e:
+                print(f"❌ Error: {e}")
+                if attempt < max_retries - 1:
+                    print(f"⏳ Retrying in {delay} seconds...")
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    return None
+        
+        return None
     
     def create_config_template(self):
         """Create a configuration template file."""
@@ -66,53 +153,64 @@ class RedditCLI:
     def post_to_subreddit(self, subreddit_name: str, title: str, 
                          content: str = None, url: str = None, 
                          flair_id: str = None) -> Optional[Submission]:
-        """Post to a subreddit."""
-        try:
-            subreddit = self.reddit.subreddit(subreddit_name)
-            
-            if url:
-                # Link post
-                submission = subreddit.submit(
-                    title=title,
-                    url=url,
-                    flair_id=flair_id
-                )
-            else:
-                # Text post
-                submission = subreddit.submit(
-                    title=title,
-                    selftext=content or "",
-                    flair_id=flair_id
-                )
-            
-            print(f"✅ Successfully posted to r/{subreddit_name}")
-            print(f"📝 Title: {title}")
-            print(f"🔗 URL: https://reddit.com{submission.permalink}")
-            
-            return submission
-            
-        except Exception as e:
-            print(f"❌ Error posting to r/{subreddit_name}: {e}")
-            return None
+        """Post to a subreddit with rate limiting."""
+        return self._execute_with_retry(
+            self._post_to_subreddit_impl,
+            subreddit_name, title, content, url, flair_id
+        )
+    
+    def _post_to_subreddit_impl(self, subreddit_name: str, title: str, 
+                               content: str = None, url: str = None, 
+                               flair_id: str = None) -> Optional[Submission]:
+        """Internal implementation of posting to subreddit."""
+        subreddit = self.reddit.subreddit(subreddit_name)
+        
+        if url:
+            # Link post
+            submission = subreddit.submit(
+                title=title,
+                url=url,
+                flair_id=flair_id
+            )
+        else:
+            # Text post
+            submission = subreddit.submit(
+                title=title,
+                selftext=content or "",
+                flair_id=flair_id
+            )
+        
+        print(f"✅ Successfully posted to r/{subreddit_name}")
+        print(f"📝 Title: {title}")
+        print(f"🔗 URL: https://reddit.com{submission.permalink}")
+        
+        return submission
     
     def get_subreddit_flairs(self, subreddit_name: str) -> List[Dict]:
-        """Get available flairs for a subreddit."""
-        try:
-            subreddit = self.reddit.subreddit(subreddit_name)
-            flairs = []
-            
-            for flair in subreddit.flair.link_templates:
-                flairs.append({
-                    'id': flair['id'],
-                    'text': flair['text'],
-                    'css_class': flair.get('css_class', '')
-                })
-            
-            return flairs
-            
-        except Exception as e:
-            print(f"❌ Error getting flairs for r/{subreddit_name}: {e}")
-            return []
+        """Get available flairs for a subreddit with rate limiting."""
+        return self._execute_with_retry(
+            self._get_subreddit_flairs_impl,
+            subreddit_name
+        ) or []
+    
+    def _get_subreddit_flairs_impl(self, subreddit_name: str) -> List[Dict]:
+        """Internal implementation of getting subreddit flairs."""
+        subreddit = self.reddit.subreddit(subreddit_name)
+        flairs = []
+        
+        for flair in subreddit.flair.link_templates:
+            flairs.append({
+                'id': flair['id'],
+                'text': flair['text'],
+                'css_class': flair.get('css_class', '')
+            })
+        
+        return flairs
+    
+    def _add_delay(self, seconds=2):
+        """Add a delay to prevent rate limiting."""
+        print(f"⏳ Waiting {seconds} seconds to avoid rate limiting...")
+        time.sleep(seconds)
     
     def get_post_responses(self, submission: Submission, limit: int = 10) -> List[Dict]:
         """Get responses (comments) for a post."""
