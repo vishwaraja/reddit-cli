@@ -347,6 +347,161 @@ class RedditCLI:
             print(f"❌ Error getting hot posts: {e}")
             return []
     
+    def search_subreddits(self, query: str, limit: int = 10) -> List[Dict]:
+        """Search for subreddits by keywords."""
+        return self._execute_with_retry(
+            self._search_subreddits_impl,
+            query, limit
+        ) or []
+    
+    def _search_subreddits_impl(self, query: str, limit: int = 10) -> List[Dict]:
+        """Internal implementation of searching subreddits."""
+        try:
+            subreddits = []
+            
+            for subreddit in self.reddit.subreddits.search(query, limit=limit):
+                subreddits.append({
+                    'name': subreddit.display_name,
+                    'title': subreddit.title,
+                    'description': subreddit.description[:200] + "..." if len(subreddit.description) > 200 else subreddit.description,
+                    'subscribers': subreddit.subscribers,
+                    'active_users': getattr(subreddit, 'active_user_count', 'N/A'),
+                    'url': f"https://reddit.com/r/{subreddit.display_name}",
+                    'nsfw': subreddit.over18
+                })
+            
+            return subreddits
+            
+        except Exception as e:
+            print(f"❌ Error searching subreddits: {e}")
+            return []
+    
+    def get_subreddit_info(self, subreddit_name: str) -> Optional[Dict]:
+        """Get detailed information about a subreddit."""
+        return self._execute_with_retry(
+            self._get_subreddit_info_impl,
+            subreddit_name
+        )
+    
+    def _get_subreddit_info_impl(self, subreddit_name: str) -> Optional[Dict]:
+        """Internal implementation of getting subreddit info."""
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            
+            info = {
+                'name': subreddit.display_name,
+                'title': subreddit.title,
+                'description': subreddit.description,
+                'public_description': subreddit.public_description,
+                'subscribers': subreddit.subscribers,
+                'active_users': getattr(subreddit, 'active_user_count', 'N/A'),
+                'created_utc': datetime.fromtimestamp(subreddit.created_utc).strftime('%Y-%m-%d %H:%M:%S'),
+                'url': f"https://reddit.com/r/{subreddit.display_name}",
+                'nsfw': subreddit.over18,
+                'quarantine': subreddit.quarantine,
+                'submission_type': subreddit.submission_type,
+                'lang': subreddit.lang
+            }
+            
+            return info
+            
+        except Exception as e:
+            print(f"❌ Error getting subreddit info: {e}")
+            return None
+    
+    def subscribe_to_subreddit(self, subreddit_name: str) -> bool:
+        """Subscribe to a subreddit."""
+        return self._execute_with_retry(
+            self._subscribe_to_subreddit_impl,
+            subreddit_name
+        ) or False
+    
+    def _subscribe_to_subreddit_impl(self, subreddit_name: str) -> bool:
+        """Internal implementation of subscribing to subreddit."""
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            subreddit.subscribe()
+            print(f"✅ Successfully subscribed to r/{subreddit_name}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error subscribing to subreddit: {e}")
+            return False
+    
+    def unsubscribe_from_subreddit(self, subreddit_name: str) -> bool:
+        """Unsubscribe from a subreddit."""
+        return self._execute_with_retry(
+            self._unsubscribe_from_subreddit_impl,
+            subreddit_name
+        ) or False
+    
+    def _unsubscribe_from_subreddit_impl(self, subreddit_name: str) -> bool:
+        """Internal implementation of unsubscribing from subreddit."""
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            subreddit.unsubscribe()
+            print(f"✅ Successfully unsubscribed from r/{subreddit_name}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error unsubscribing from subreddit: {e}")
+            return False
+    
+    def get_trending_subreddits(self, limit: int = 10) -> List[Dict]:
+        """Get trending subreddits."""
+        return self._execute_with_retry(
+            self._get_trending_subreddits_impl,
+            limit
+        ) or []
+    
+    def _get_trending_subreddits_impl(self, limit: int = 10) -> List[Dict]:
+        """Internal implementation of getting trending subreddits."""
+        try:
+            subreddits = []
+            
+            # Get popular subreddits as a proxy for trending
+            for subreddit in self.reddit.subreddits.popular(limit=limit):
+                subreddits.append({
+                    'name': subreddit.display_name,
+                    'title': subreddit.title,
+                    'description': subreddit.description[:200] + "..." if len(subreddit.description) > 200 else subreddit.description,
+                    'subscribers': subreddit.subscribers,
+                    'active_users': getattr(subreddit, 'active_user_count', 'N/A'),
+                    'url': f"https://reddit.com/r/{subreddit.display_name}",
+                    'nsfw': subreddit.over18
+                })
+            
+            return subreddits
+            
+        except Exception as e:
+            print(f"❌ Error getting trending subreddits: {e}")
+            return []
+    
+    def get_subreddit_moderators(self, subreddit_name: str) -> List[Dict]:
+        """Get moderators of a subreddit."""
+        return self._execute_with_retry(
+            self._get_subreddit_moderators_impl,
+            subreddit_name
+        ) or []
+    
+    def _get_subreddit_moderators_impl(self, subreddit_name: str) -> List[Dict]:
+        """Internal implementation of getting subreddit moderators."""
+        try:
+            subreddit = self.reddit.subreddit(subreddit_name)
+            moderators = []
+            
+            for moderator in subreddit.moderator():
+                moderators.append({
+                    'name': str(moderator),
+                    'url': f"https://reddit.com/u/{moderator}"
+                })
+            
+            return moderators
+            
+        except Exception as e:
+            print(f"❌ Error getting subreddit moderators: {e}")
+            return []
+    
     def monitor_post(self, submission: Submission, check_interval: int = 30, 
                     max_checks: int = 10) -> List[Dict]:
         """Monitor a post for new responses."""
@@ -437,6 +592,31 @@ def main():
     hot_parser.add_argument("subreddit", help="Subreddit name (without r/)")
     hot_parser.add_argument("--limit", type=int, default=10, help="Number of posts to fetch")
     
+    # Search subreddits command
+    search_parser = subparsers.add_parser("search-subreddits", help="Search for subreddits by keywords")
+    search_parser.add_argument("query", help="Search query")
+    search_parser.add_argument("--limit", type=int, default=10, help="Number of subreddits to fetch")
+    
+    # Subreddit info command
+    info_parser = subparsers.add_parser("subreddit-info", help="Get detailed information about a subreddit")
+    info_parser.add_argument("subreddit", help="Subreddit name (without r/)")
+    
+    # Subscribe command
+    subscribe_parser = subparsers.add_parser("subscribe", help="Subscribe to a subreddit")
+    subscribe_parser.add_argument("subreddit", help="Subreddit name (without r/)")
+    
+    # Unsubscribe command
+    unsubscribe_parser = subparsers.add_parser("unsubscribe", help="Unsubscribe from a subreddit")
+    unsubscribe_parser.add_argument("subreddit", help="Subreddit name (without r/)")
+    
+    # Trending subreddits command
+    trending_parser = subparsers.add_parser("trending", help="Get trending subreddits")
+    trending_parser.add_argument("--limit", type=int, default=10, help="Number of subreddits to fetch")
+    
+    # Moderators command
+    moderators_parser = subparsers.add_parser("moderators", help="Get moderators of a subreddit")
+    moderators_parser.add_argument("subreddit", help="Subreddit name (without r/)")
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -518,6 +698,80 @@ def main():
                 print(f"   🔗 {post['url']}")
         else:
             print(f"No hot posts found for r/{args.subreddit}")
+    
+    elif args.command == "search-subreddits":
+        subreddits = cli.search_subreddits(args.query, args.limit)
+        if subreddits:
+            print(f"\n🔍 Subreddits matching '{args.query}':")
+            for i, subreddit in enumerate(subreddits, 1):
+                print(f"\n{i}. 📍 r/{subreddit['name']}")
+                print(f"   📝 {subreddit['title']}")
+                print(f"   📄 {subreddit['description']}")
+                print(f"   👥 {subreddit['subscribers']:,} subscribers | 🔥 {subreddit['active_users']} active")
+                print(f"   🔗 {subreddit['url']}")
+                if subreddit['nsfw']:
+                    print(f"   ⚠️  NSFW")
+        else:
+            print(f"No subreddits found matching '{args.query}'")
+    
+    elif args.command == "subreddit-info":
+        info = cli.get_subreddit_info(args.subreddit)
+        if info:
+            print(f"\n📊 Information about r/{args.subreddit}:")
+            print(f"   📝 Title: {info['title']}")
+            print(f"   📄 Description: {info['description']}")
+            print(f"   📄 Public Description: {info['public_description']}")
+            print(f"   👥 Subscribers: {info['subscribers']:,}")
+            print(f"   🔥 Active Users: {info['active_users']}")
+            print(f"   📅 Created: {info['created_utc']}")
+            print(f"   🔗 URL: {info['url']}")
+            print(f"   📝 Submission Type: {info['submission_type']}")
+            print(f"   🌐 Language: {info['lang']}")
+            if info['nsfw']:
+                print(f"   ⚠️  NSFW: Yes")
+            if info['quarantine']:
+                print(f"   🚫 Quarantined: Yes")
+        else:
+            print(f"Could not get information for r/{args.subreddit}")
+    
+    elif args.command == "subscribe":
+        success = cli.subscribe_to_subreddit(args.subreddit)
+        if success:
+            print(f"\n✅ Successfully subscribed to r/{args.subreddit}!")
+        else:
+            print(f"\n❌ Failed to subscribe to r/{args.subreddit}")
+    
+    elif args.command == "unsubscribe":
+        success = cli.unsubscribe_from_subreddit(args.subreddit)
+        if success:
+            print(f"\n✅ Successfully unsubscribed from r/{args.subreddit}!")
+        else:
+            print(f"\n❌ Failed to unsubscribe from r/{args.subreddit}")
+    
+    elif args.command == "trending":
+        subreddits = cli.get_trending_subreddits(args.limit)
+        if subreddits:
+            print(f"\n🔥 Trending Subreddits:")
+            for i, subreddit in enumerate(subreddits, 1):
+                print(f"\n{i}. 📍 r/{subreddit['name']}")
+                print(f"   📝 {subreddit['title']}")
+                print(f"   📄 {subreddit['description']}")
+                print(f"   👥 {subreddit['subscribers']:,} subscribers | 🔥 {subreddit['active_users']} active")
+                print(f"   🔗 {subreddit['url']}")
+                if subreddit['nsfw']:
+                    print(f"   ⚠️  NSFW")
+        else:
+            print(f"No trending subreddits found")
+    
+    elif args.command == "moderators":
+        moderators = cli.get_subreddit_moderators(args.subreddit)
+        if moderators:
+            print(f"\n👮 Moderators of r/{args.subreddit}:")
+            for i, moderator in enumerate(moderators, 1):
+                print(f"   {i}. 👤 u/{moderator['name']}")
+                print(f"      🔗 {moderator['url']}")
+        else:
+            print(f"No moderators found for r/{args.subreddit}")
 
 
 if __name__ == "__main__":
